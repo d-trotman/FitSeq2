@@ -195,7 +195,7 @@ def create_scatter_plot(df):
     # Add labels and title
     ax.set_xlabel('(Clim + Nlim)/2 Average Fitness', fontsize=12)
     ax.set_ylabel('Switch Average Fitness', fontsize=12)
-    ax.set_title('Yeast Mutant Fitness: Static Average vs Dynamic Switch', fontsize=14)
+    ax.set_title('Fitness: Static Average vs Switch', fontsize=14)
     
     # Add legend
     ax.legend()

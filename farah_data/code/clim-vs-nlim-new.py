@@ -101,9 +101,9 @@ def create_scatter_plot(df, output_file=None):
     ax.plot(x, y, 'g-', label=f'Regression line (r={r_value:.3f})')
     
     # Add labels and title
-    ax.set_xlabel('Average Fitness in Nlim (Time Points)', fontsize=12)
-    ax.set_ylabel('Average Fitness in Clim (Time Points, excluding final)', fontsize=12)
-    ax.set_title('Yeast Mutant Fitness: Clim vs Nlim', fontsize=14)
+    ax.set_xlabel('Average Fitness in Nlim', fontsize=12)
+    ax.set_ylabel('Average Fitness in Clim', fontsize=12)
+    ax.set_title('Fitness: Clim vs Nlim', fontsize=14)
     
     # Add legend
     ax.legend()

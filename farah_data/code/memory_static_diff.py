@@ -72,19 +72,19 @@ def safe_correlation(x, y):
     df = df.replace([np.inf, -np.inf], np.nan).dropna()
     
     if len(df) < 2:
-        return None
+        return None, None
     
     try:
         # Use scipy's pearsonr which is more robust
-        corr, _ = stats.pearsonr(df['x'], df['y'])
-        return corr
+        corr, p_value = stats.pearsonr(df['x'], df['y'])
+        return corr, p_value
     except:
         # Fall back to pandas correlation
         try:
             corr = df['x'].corr(df['y'])
-            return corr
+            return corr, None
         except:
-            return None
+            return None, None
 
 def safe_polyfit(x, y, deg=1):
     """Safely perform polynomial fitting with error handling."""
@@ -123,14 +123,12 @@ def main():
                        default='/Users/dawsontrotman/Documents/GitHub/FitSeq2/farah_data/fitseq_results/results/fit_chk_calc/Switch_rep1_individual_mutant_fitness.csv',
                        help='Path to the Switch environment fitness data CSV file')
     parser.add_argument('--output', type=str, 
-                       default='/Users/dawsontrotman/Documents/GitHub/FitSeq2/farah_data/fitseq_results/results/fit_chk_calc/plots/fitness_comparison_threshold.png',
+                       default='/Users/dawsontrotman/Documents/GitHub/FitSeq2/farah_data/fitseq_results/results/fit_chk_calc/plots/fitness_memory_comparison.png',
                        help='Path to save the output plot')
     parser.add_argument('--min_fitness', type=float, default=-1,
                        help='Minimum fitness value to include in analysis')
     parser.add_argument('--max_fitness', type=float, default=1,
                        help='Maximum fitness value to include in analysis')
-    parser.add_argument('--threshold', type=float, default=0.2,
-                       help='Minimum y-axis value (component fitness) to include in the plot')
     
     args = parser.parse_args()
     
@@ -158,7 +156,7 @@ def main():
     # Calculate |Clim fit - Nlim fit|/2 for each mutant
     print("Calculating fitness differences...")
     fitness_diff = pd.merge(clim_avg, nlim_avg, on='mutant_id', suffixes=('_clim', '_nlim'))
-    fitness_diff['fitness_diff'] = abs(fitness_diff['avg_fitness_clim'] - fitness_diff['avg_fitness_nlim']) / 2
+    fitness_diff['fitness_diff'] = fitness_diff['avg_fitness_clim'] - fitness_diff['avg_fitness_nlim']
     
     # Calculate component fitness from Switch data
     print("Calculating component fitness in fluctuating environment...")
@@ -168,67 +166,63 @@ def main():
     plot_data = pd.merge(fitness_diff, component_fitness, on='mutant_id')
     
     # Remove any rows that have NaN values in the plotting columns
-    plot_data = plot_data.dropna(subset=['fitness_diff', 'clim_component', 'nlim_component'])
+    plot_data = plot_data.dropna(subset=['fitness_diff', 'clim_component', 'nlim_component', 
+                                         'avg_fitness_clim', 'avg_fitness_nlim'])
     
-    # Save the complete processed data before threshold filtering
+    # Calculate memory for both environments
+    plot_data['clim_memory'] = plot_data['clim_component'] - plot_data['avg_fitness_clim']
+    plot_data['nlim_memory'] = plot_data['nlim_component'] - plot_data['avg_fitness_nlim']
+    
+    # Save the complete processed data
     output_dir = os.path.dirname(args.output)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     
-    complete_data_output = os.path.join(output_dir, 'processed_fitness_data_complete.csv')
+    complete_data_output = os.path.join(output_dir, 'processed_fitness_memory_data.csv')
     plot_data.to_csv(complete_data_output, index=False)
     print(f"Complete processed data saved to {complete_data_output}")
     
-    # Filter to only include mutants with component fitness > threshold
-    threshold = args.threshold
-    print(f"Filtering to only include mutants with component fitness > {threshold}...")
+    print(f"Final dataset contains {len(plot_data)} mutants")
     
-    pre_filter_count = len(plot_data)
-    plot_data = plot_data[
-        (plot_data['clim_component'] > threshold) | 
-        (plot_data['nlim_component'] > threshold)
-    ]
-    post_filter_count = len(plot_data)
-    
-    print(f"Filtered out {pre_filter_count - post_filter_count} mutants with component fitness <= {threshold}")
-    print(f"Final dataset contains {post_filter_count} mutants")
-    
-    # Save the filtered processed data
-    filtered_data_output = os.path.join(output_dir, f'processed_fitness_data_threshold_{threshold}.csv')
-    plot_data.to_csv(filtered_data_output, index=False)
-    print(f"Threshold-filtered data saved to {filtered_data_output}")
-    
-    # Print some statistics on the filtered data
-    print("\nStatistics for threshold-filtered data:")
-    print(f"Fitness Difference (|Clim - Nlim|/2): min={plot_data['fitness_diff'].min():.4f}, "
+    # Print some statistics on the data
+    print("\nStatistics for the data:")
+    print(f"Fitness Difference (|Clim - Nlim|): min={plot_data['fitness_diff'].min():.4f}, "
           f"max={plot_data['fitness_diff'].max():.4f}, mean={plot_data['fitness_diff'].mean():.4f}")
-    print(f"Clim Component in Switch: min={plot_data['clim_component'].min():.4f}, "
-          f"max={plot_data['clim_component'].max():.4f}, mean={plot_data['clim_component'].mean():.4f}")
-    print(f"Nlim Component in Switch: min={plot_data['nlim_component'].min():.4f}, "
-          f"max={plot_data['nlim_component'].max():.4f}, mean={plot_data['nlim_component'].mean():.4f}")
+    print(f"Clim Memory: min={plot_data['clim_memory'].min():.4f}, "
+          f"max={plot_data['clim_memory'].max():.4f}, mean={plot_data['clim_memory'].mean():.4f}")
+    print(f"Nlim Memory: min={plot_data['nlim_memory'].min():.4f}, "
+          f"max={plot_data['nlim_memory'].max():.4f}, mean={plot_data['nlim_memory'].mean():.4f}")
+    
+    # Calculate correlation coefficients and p-values
+    clim_corr, clim_p = safe_correlation(plot_data['fitness_diff'], plot_data['clim_memory'])
+    nlim_corr, nlim_p = safe_correlation(plot_data['fitness_diff'], plot_data['nlim_memory'])
+    
+    # Print correlation statistics
+    if clim_corr is not None and clim_p is not None:
+        print(f"\nCorrelation between fitness difference and Clim memory: r = {clim_corr:.4f}, p = {clim_p:.4e}")
+    else:
+        print("\nCould not calculate correlation for Clim memory")
+    
+    if nlim_corr is not None and nlim_p is not None:
+        print(f"Correlation between fitness difference and Nlim memory: r = {nlim_corr:.4f}, p = {nlim_p:.4e}")
+    else:
+        print("Could not calculate correlation for Nlim memory")
     
     # Create scatter plot
     print("Creating scatter plot...")
     fig, ax = plt.subplots(figsize=(12, 8))
     
-    # Split the data based on which component exceeds the threshold
-    clim_high = plot_data[plot_data['clim_component'] > threshold]
-    nlim_high = plot_data[plot_data['nlim_component'] > threshold]
-    both_high = plot_data[(plot_data['clim_component'] > threshold) & (plot_data['nlim_component'] > threshold)]
-    
-    # Plot the data - using different colors for points that exceed threshold in both components
-    if len(clim_high) > 0:
-        ax.scatter(clim_high['fitness_diff'], clim_high['clim_component'], 
-                alpha=0.6, label='Carbon-limited Component > 0.2', color='blue')
-    
-    if len(nlim_high) > 0:
-        ax.scatter(nlim_high['fitness_diff'], nlim_high['nlim_component'], 
-                alpha=0.6, label='Nitrogen-limited Component > 0.2', color='green', marker='^')
+    # Plot the data - using different colors for Clim and Nlim memory
+    if len(plot_data) > 0:
+        ax.scatter(plot_data['fitness_diff'], plot_data['clim_memory'], 
+                  alpha=0.6, label='Carbon-limited Memory', color='blue')
+        ax.scatter(plot_data['fitness_diff'], plot_data['nlim_memory'], 
+                  alpha=0.6, label='Nitrogen-limited Memory', color='green', marker='^')
     
     # Add labels and title
-    ax.set_xlabel('|Clim fit - Nlim fit|/2', fontsize=14)
-    ax.set_ylabel(f'Absolute Component Fitness in Switch Environment (> {threshold})', fontsize=14)
-    ax.set_title('Absolute Fitness in Fluctuating Environment vs. Fitness Difference in Static Environments', 
+    ax.set_xlabel('Static Clim fit - Nlim fit', fontsize=14)
+    ax.set_ylabel('Memory (Fluctuating Component Fitness - Static Fitness)', fontsize=14)
+    ax.set_title('Memory in Fluctuating Environment vs. Fitness Difference in Static Environments', 
                 fontsize=16)
     
     # Add a grid
@@ -238,23 +232,23 @@ def main():
     ax.legend(fontsize=12)
     
     # Add reference lines
-    ax.axhline(y=threshold, color='red', linestyle='--', alpha=0.5, 
-              label=f'Threshold ({threshold})')
+    ax.axhline(y=0, color='red', linestyle='--', alpha=0.5)
     ax.axvline(x=0, color='grey', linestyle='-', alpha=0.3)
     
     # Set axis limits
-    ax.set_xlim(0, plot_data['fitness_diff'].max() * 1.05)
-    # Set y-axis limits to show only filtered data
-    y_min = threshold
-    y_max = max(plot_data['clim_component'].max(), plot_data['nlim_component'].max())
+    ax.set_xlim(-1.75, plot_data['fitness_diff'].max() * 1.05)
+    
+    # Set y-axis limits with padding
+    y_min = min(plot_data['clim_memory'].min(), plot_data['nlim_memory'].min())
+    y_max = max(plot_data['clim_memory'].max(), plot_data['nlim_memory'].max())
     padding = (y_max - y_min) * 0.05
     ax.set_ylim(y_min - padding, y_max + padding)
     
     # Check if we have enough data for regression lines
-    if len(clim_high) >= 2:
-        # Attempt to add linear regression lines
-        x_clim = clim_high['fitness_diff']
-        y_clim = clim_high['clim_component']
+    if len(plot_data) >= 2:
+        # Attempt to add linear regression lines for Clim memory
+        x_clim = plot_data['fitness_diff']
+        y_clim = plot_data['clim_memory']
         
         # Safely try to add regression lines
         m_clim, b_clim = safe_polyfit(x_clim, y_clim)
@@ -262,40 +256,39 @@ def main():
         # Add regression lines and equations if calculations succeeded
         if m_clim is not None and b_clim is not None:
             # Generate points for the regression line
-            x_range = np.linspace(0, x_clim.max(), 100)
+            x_range = np.linspace(plot_data['fitness_diff'].min(), x_clim.max(), 100)
             ax.plot(x_range, m_clim*x_range + b_clim, color='blue', linestyle='--', alpha=0.5)
-            ax.annotate(f'Clim: y = {m_clim:.4f}x + {b_clim:.4f}', 
-                        xy=(0.05, 0.95), xycoords='axes fraction',
-                        color='blue', fontsize=10)
-    
-    if len(nlim_high) >= 2:
-        x_nlim = nlim_high['fitness_diff']
-        y_nlim = nlim_high['nlim_component']
+            
+            # Add equation with correlation statistics
+            if clim_corr is not None and clim_p is not None:
+                ax.annotate(f'Clim Memory: y = {m_clim:.4f}x + {b_clim:.4f}\nr = {clim_corr:.4f}, p = {clim_p:.4e}', 
+                            xy=(0.05, 0.95), xycoords='axes fraction',
+                            color='blue', fontsize=10)
+            else:
+                ax.annotate(f'Clim Memory: y = {m_clim:.4f}x + {b_clim:.4f}', 
+                            xy=(0.05, 0.95), xycoords='axes fraction',
+                            color='blue', fontsize=10)
+        
+        # Regression lines for Nlim memory
+        x_nlim = plot_data['fitness_diff']
+        y_nlim = plot_data['nlim_memory']
         
         m_nlim, b_nlim = safe_polyfit(x_nlim, y_nlim)
         
         if m_nlim is not None and b_nlim is not None:
             # Generate points for the regression line
-            x_range = np.linspace(0, x_nlim.max(), 100)
+            x_range = np.linspace(plot_data['fitness_diff'].min(), x_nlim.max(), 100)
             ax.plot(x_range, m_nlim*x_range + b_nlim, color='green', linestyle='--', alpha=0.5)
-            ax.annotate(f'Nlim: y = {m_nlim:.4f}x + {b_nlim:.4f}', 
-                        xy=(0.05, 0.90), xycoords='axes fraction',
-                        color='green', fontsize=10)
-    
-    # Safely calculate correlation coefficients
-    if len(clim_high) >= 2:
-        clim_corr = safe_correlation(clim_high['fitness_diff'], clim_high['clim_component'])
-        if clim_corr is not None:
-            print(f"\nCorrelation between fitness difference and Clim component: {clim_corr:.4f}")
-        else:
-            print("\nCould not calculate correlation for Clim component")
-    
-    if len(nlim_high) >= 2:
-        nlim_corr = safe_correlation(nlim_high['fitness_diff'], nlim_high['nlim_component'])
-        if nlim_corr is not None:
-            print(f"Correlation between fitness difference and Nlim component: {nlim_corr:.4f}")
-        else:
-            print("Could not calculate correlation for Nlim component")
+            
+            # Add equation with correlation statistics
+            if nlim_corr is not None and nlim_p is not None:
+                ax.annotate(f'Nlim Memory: y = {m_nlim:.4f}x + {b_nlim:.4f}\nr = {nlim_corr:.4f}, p = {nlim_p:.4e}', 
+                            xy=(0.05, 0.90), xycoords='axes fraction',
+                            color='green', fontsize=10)
+            else:
+                ax.annotate(f'Nlim Memory: y = {m_nlim:.4f}x + {b_nlim:.4f}', 
+                            xy=(0.05, 0.90), xycoords='axes fraction',
+                            color='green', fontsize=10)
     
     # Save the figure
     plt.tight_layout()

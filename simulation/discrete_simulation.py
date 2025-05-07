@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt 
 
 """
 Simulation of barcoded S. cerevisiae strains growing in liquid culture
@@ -17,7 +17,7 @@ fitness_std_dev = 0.1  # Standard deviation of fitness distribution
 bottleneck_size = 3e7  # 3 * 10^7 cells
 carrying_capacity = bottleneck_size
 generations_between_bottlenecks = 5
-dilution_factor = np.log(2) / np.log(18)
+dilution_factor = 17.81 # Dilution factor for bottleneck
 num_timepoints = 10
 
 # Step 1: Generate fitness values from Gaussian distribution
@@ -144,7 +144,7 @@ def plot_strain_frequencies(df, num_strains, num_timepoints, fitness_values):
              color='red', fontsize=10, ha='left', va='bottom')
     
     # Title
-    plt.title('Simulated Frequency of S. cerevisiae Strains Over Time')
+    plt.title('Simulated Frequency of S. cerevisiae Strains Over Time; Discrete Model')
     
     # Legend for the top 5 fittest strains and average fitness
     handles1, labels1 = ax1.get_legend_handles_labels()

@@ -57,10 +57,8 @@ def chemostat_growth_model(t, N, r, D):
     """
     # Calculate mean fitness
     total_pop = np.sum(N)
-    if total_pop > 0:
-        mean_fitness = np.sum(r * N) / total_pop
-    else:
-        mean_fitness = 0
+    mean_fitness = np.sum(r * N) / total_pop
+
     
     # Growth rate for each strain
     dNdt = N * (r - mean_fitness) - D * N

@@ -16,6 +16,8 @@ def prepare_fitseq_input(input_file, output_prefix):
     """
     print(f"Preparing FitSeq2 input from {input_file}")
     
+    carrying_capacity = 5e9
+    
     # Read the simulation data
     data = pd.read_csv(input_file)
     
@@ -29,8 +31,8 @@ def prepare_fitseq_input(input_file, output_prefix):
     
     # Create timepoints file with generations and total cell numbers
     # Assuming t0, t1, etc. correspond to generations 0, 5, 10, etc.
-    generations = np.arange(len(read_columns)) * 5  # Assuming 5 generations between timepoints
-    total_cells = reads_data.sum(axis=0)  # Sum reads across all strains for each timepoint
+    generations = np.arange(len(read_columns)) * 4  # ln(DF)/ln(2) = 4 generations per timepoint
+    total_cells = carrying_capacity
     
     timepoints_file = f"{output_prefix}_timepoints.csv"
     pd.DataFrame({
@@ -80,7 +82,7 @@ def main():
         'yeast_discrete_simulation.csv', 'discrete')
     
     # Run FitSeq2 on discrete data
-    run_fitseq(discrete_reads, discrete_timepoints, delta_t=5.0, 
+    run_fitseq(discrete_reads, discrete_timepoints, delta_t=4.0, 
                output_prefix='discrete_results')
     
     print("FitSeq2 analysis for discrete data complete!")

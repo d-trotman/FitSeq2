@@ -14,11 +14,13 @@ np.random.seed(42)  # This ensures the same "random" numbers are generated each 
 # Parameters
 num_strains = 4000  # Number of different strains
 fitness_std_dev = 0.1  # Standard deviation of fitness distribution
-bottleneck_size = 3e7  # 3 * 10^7 cells
-carrying_capacity = bottleneck_size
-generations_between_bottlenecks = 5
+saturation_population = 5e9  # 3 * 10^7 cells
+carrying_capacity = saturation_population
+total_experiment_hours = 240
+num_bottlenecks = 10 # or number of sampling events
+cycle_hours = total_experiment_hours / num_bottlenecks # number of hours between bottlenecks
+num_timepoints = num_bottlenecks + 1  # Initial + after each bottleneck
 dilution_factor = 17.81 # Dilution factor for bottleneck
-num_timepoints = 10
 
 # Step 1: Generate fitness values from Gaussian distribution
 # Mean fitness is set to 1.0
@@ -26,7 +28,7 @@ fitness_values = np.random.normal(1.0, fitness_std_dev, num_strains)
 
 # Initial equal frequencies for all strains
 initial_frequencies = np.ones(num_strains) / num_strains
-initial_population = initial_frequencies * bottleneck_size
+initial_population = initial_frequencies * saturation_population
 
 def calculate_mean_fitness(population, fitness):
     """Calculate average population fitness weighted by population size."""
@@ -54,32 +56,33 @@ def simulate_growth(initial_population, fitness_values, num_timepoints, carrying
     """
     populations = np.zeros((num_timepoints, len(initial_population)))
     populations[0] = initial_population
-    
     current_population = initial_population.copy()
     
     for t in range(1, num_timepoints):
         # Simulate growth for specified number of generations
-        time_span = [0, generations_between_bottlenecks]
+        time_span = time_span = [cycle_hours*(t-1), cycle_hours*t] #[cycle_hours*(t-1), cycle_hours*t]  # or time_span = [0, cycle_hours]
         
         # Solve the differential equation
         solution = solve_ivp(
-            fun=lambda t, N: growth_model(t, N, fitness_values, carrying_capacity),
-            t_span=time_span,
-            y0=current_population,
+            growth_model, 
+            time_span, 
+            current_population,
+            args=(fitness_values, carrying_capacity),
             method='RK45'
         )
         
         # Get the population after growth
         grown_population = solution.y[:, -1]
+        timepoints = solution.t #not currently using this in graphing
         
         # Apply bottleneck (dilution)
         total_population = np.sum(grown_population)
         frequencies = grown_population / total_population
-        current_population = frequencies * bottleneck_size * dilution_factor
+        current_population = grown_population / dilution_factor
         
         # Store the population
         populations[t] = current_population
-    
+        
     return populations
 
 def plot_strain_frequencies(df, num_strains, num_timepoints, fitness_values):
@@ -134,7 +137,7 @@ def plot_strain_frequencies(df, num_strains, num_timepoints, fitness_values):
     ax2.set_ylabel('Average Population Fitness')
     
     # Calculate extinction threshold (frequency equivalent to 1 cell)
-    extinction_threshold = 1.0 / bottleneck_size
+    extinction_threshold = 1.0 / saturation_population
     
     # Add horizontal line at extinction threshold
     ax1.axhline(y=extinction_threshold, color='red', linestyle=':', linewidth=2)

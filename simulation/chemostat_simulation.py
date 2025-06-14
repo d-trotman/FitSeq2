@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import math as math
 
 """
 Simulation of barcoded S. cerevisiae strains growing in a chemostat
@@ -14,11 +15,14 @@ np.random.seed(42)
 # Parameters
 num_strains = 4000  # Number of different strains
 fitness_std_dev = 0.1  # Standard deviation of fitness distribution
-chemostat_size = 3e7  # Static population size (3 * 10^7 cells)
+chemostat_size = 5e9  # Static population size (5 * 10^9 cells)
 dilution_rate = 0.12  # Dilution rate per hour
 num_timepoints = 10
-total_time = 50 # Total simulation time in hours
-time_points = np.linspace(0, total_time, num_timepoints)  # Sample at these time points
+total_time = 240 # Total simulation time in hours
+cycle_hours = total_time / num_timepoints  # Number of hours between samples
+dilution_factor = math.exp(dilution_rate*cycle_hours)  # Dilution factor for bottleneck
+gens_between_samples = math.log(dilution_factor) / math.log(2)  # Generations between samples, about 4.15
+time_points = np.linspace(0, total_time, num_timepoints+1)  # Sample at these time points
 
 # Calculate generation time for this dilution rate (for reference)
 generation_time = np.log(2) / dilution_rate  # Hours per generation
@@ -59,13 +63,12 @@ def chemostat_growth_model(t, N, r, D):
     total_pop = np.sum(N)
     mean_fitness = np.sum(r * N) / total_pop
 
-    
     # Growth rate for each strain
     dNdt = N * (r - mean_fitness) - D * N
     
     return dNdt
 
-def simulate_chemostat(initial_population, fitness_values, dilution_rate, time_points):
+def simulate_chemostat(initial_frequencies, fitness_values, dilution_rate, time_points):
     """
     Simulate growth of multiple strains in a chemostat over time.
     
@@ -77,13 +80,13 @@ def simulate_chemostat(initial_population, fitness_values, dilution_rate, time_p
     """
     # Solve the differential equation over the entire time span
     solution = solve_ivp(
-        fun=lambda t, N: chemostat_growth_model(t, N, fitness_values, dilution_rate),
-        t_span=[0, time_points[-1]],
-        y0=initial_population,
+        chemostat_growth_model,
+        [0, time_points[-1]],
+        initial_frequencies,
+        args=(fitness_values, dilution_rate),
         method='RK45',
         t_eval=time_points
-    )
-    
+)
     # Extract population sizes at each time point
     populations = solution.y.T  # Transpose to get [timepoints, strains]
     
@@ -175,11 +178,11 @@ def plot_strain_frequencies(df, num_strains, time_points, fitness_values, genera
 
 # Simulate growth in chemostat
 print("Simulating chemostat growth...")
-population_data = simulate_chemostat(initial_population, fitness_values, dilution_rate, time_points)
+population_data = simulate_chemostat(initial_frequencies, fitness_values, dilution_rate, time_points)
 
 # Generate CSV with required data
 print("Preparing data for CSV output...")
-data = []
+data = {}
 
 for strain_idx in range(num_strains):
     strain_data = {
@@ -189,10 +192,10 @@ for strain_idx in range(num_strains):
     
     # Add read data and frequency for each time point
     for t in range(len(time_points)):
-        strain_data[f'reads_t{t}'] = int(population_data[t, strain_idx])
-        strain_data[f'frequency_t{t}'] = population_data[t, strain_idx] / np.sum(population_data[t])
+        strain_data[f'reads_t{t}'] = int(5e9*population_data[t, strain_idx])
+        strain_data[f'frequency_t{t}'] = population_data[t, strain_idx]
     
-    data.append(strain_data)
+    data[.append(strain_data)
 
 # Create DataFrame
 df = pd.DataFrame(data)

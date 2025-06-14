@@ -17,7 +17,7 @@ fitness_std_dev = 0.1  # Standard deviation of fitness distribution
 saturation_population = 5e9  # 3 * 10^7 cells
 carrying_capacity = saturation_population
 total_experiment_hours = 240
-num_bottlenecks = 10 # or number of sampling events
+num_bottlenecks = 10
 cycle_hours = total_experiment_hours / num_bottlenecks # number of hours between bottlenecks
 num_timepoints = num_bottlenecks + 1  # Initial + after each bottleneck
 dilution_factor = 17.81 # Dilution factor for bottleneck
@@ -60,7 +60,7 @@ def simulate_growth(initial_population, fitness_values, num_timepoints, carrying
     
     for t in range(1, num_timepoints):
         # Simulate growth for specified number of generations
-        time_span = time_span = [cycle_hours*(t-1), cycle_hours*t] #[cycle_hours*(t-1), cycle_hours*t]  # or time_span = [0, cycle_hours]
+        time_span = [cycle_hours*(t-1), cycle_hours*t] #[cycle_hours*(t-1), cycle_hours*t]  # or time_span = [0, cycle_hours]
         
         # Solve the differential equation
         solution = solve_ivp(
@@ -142,7 +142,7 @@ def plot_strain_frequencies(df, num_strains, num_timepoints, fitness_values):
     # Add horizontal line at extinction threshold
     ax1.axhline(y=extinction_threshold, color='red', linestyle=':', linewidth=2)
     
-    # Add text label for extinction line - now on the LEFT side
+    # Add text label for extinction line
     ax1.text(0, extinction_threshold*1.5, 'Extinction Threshold (0 reads)', 
              color='red', fontsize=10, ha='left', va='bottom')
     
@@ -168,7 +168,7 @@ def plot_strain_frequencies(df, num_strains, num_timepoints, fitness_values):
     plt.savefig('discrete_frequencies_plot.png', dpi=300)
     plt.close()
     
-    print("Plot generated and saved as 'strain_frequencies_plot.png'")
+    print("Plot generated and saved as 'discrete_frequencies_plot.png'")
 
 # Step 2: Simulate growth
 print("Simulating growth across 10 time points...")
